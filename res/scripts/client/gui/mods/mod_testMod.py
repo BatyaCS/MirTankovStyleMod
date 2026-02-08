@@ -1,4 +1,9 @@
+import os
+import json
 import BigWorld
+import Keys
+
+from gui import InputHandler, SystemMessages
 
 from CurrentVehicle import g_currentVehicle
 from helpers import dependency
@@ -10,8 +15,7 @@ from items import makeIntCompactDescrByID
 from items.customizations import isEditedStyle
 from gui.Scaleform.daapi.view.lobby.customization.shared import removePartsFromOutfit
 
-from test_mod.settings import STYLE_ID
-from test_mod.logger import log
+STYLE_ID = 31438
 
 def apply_customization(item_inv_id, customization_data):
     BigWorld.player().shop.buyAndEquipOutfit(item_inv_id, customization_data, None)
@@ -87,54 +91,105 @@ def is_style_available(style_item):
 
     return False, None
 
-def restyle_test():
-    vehicle = g_currentVehicle.item
-    if not vehicle or not vehicle.isInInventory:
-        log("Танчик не выбран!")
-        return
+class BatyaMod(object):
+    def __init__(self):
+        self.__conf_dir = os.path.join('mods', 'configs', 'BatyaMod')
+        self.__conf_file = os.path.join(self.__conf_dir, 'saved_info.json')
+        self.__data = {
+            'active': False,
+            'profiles': {} # Dict: { "Nickname": { "vehIntCD": "hex_data" } }
+        }
+        self.__load_config()
+        
+    def __load_config(self):
+        if not os.path.exists(self.__conf_dir):
+            os.makedirs(self.__conf_dir)
+        if os.path.exists(self.__conf_file):
+            try:
+                with open(self.__conf_file, 'r') as f:
+                    self.__data = json.load(f)
+            except Exception as e:
+                print("Error loading config: %s" % str(e))
+        else:
+            self.__save_config()
 
-    style_item = get_style_item_by_id(STYLE_ID)
-    if not style_item:
-        log("Запрашиваемый стиль не существует!")
-        return
-    
-    if is_style_already_set(style_item):
-        log("Запрашиваемый стиль уже установлен на танк!")
-        return
-    
-    style_available, vehicle = is_style_available(style_item)
-    if not style_available:
-        log("Запрашиваемый стиль недоступен!")
-        return
-    
-    if vehicle:
-        log("Снимаем запрашиваемый стиль!")
-        remove_customization(vehicle.invID)
+    def __save_config(self):
+        try:
+            with open(self.__conf_file, 'w') as f:
+                json.dump(self.__data, f, indent=4)
+        except Exception as e:
+            print("Error saving config: %s" % str(e))
 
-    current_vehicle_customization = get_vehicle_customization_data(g_currentVehicle.item)
-    def step_clear_current():
+    def __push_msg(self, text, header="BatyaMod"):
+        SystemMessages.pushMessage(text, SystemMessages.SM_TYPE.InformationHeader, messageData={'header': header})
+
+    def handle_key_event(self, event):
+        if event.isKeyDown():
+            if event.key == Keys.KEY_F9:
+                self.__data['active'] = not self.__data['active']
+                status = "ON" if self.__data['active'] else "OFF"
+                self.__push_msg("Статус: %s" % status)
+                self.__save_config()
+
+            if event.key == Keys.KEY_F10:
+                if self.__data['active']:
+                    self.__process_style_logic()
+                else:
+                    self.__push_msg("Мод выключен, нажмите F9 чтобы включить.")
+
+    def __process_style_logic(self):
+        vehicle = g_currentVehicle.item
+        if not vehicle or not vehicle.isInInventory:
+            self.__push_msg("Танчик не выбран!")
+            return
+
+        style_item = get_style_item_by_id(STYLE_ID)
+        if not style_item:
+            self.__push_msg("Запрашиваемый стиль не существует!")
+            return
+        
+        if is_style_already_set(style_item):
+            self.__push_msg("Запрашиваемый стиль уже установлен на танк!")
+            return
+        
+        style_available, vehicle = is_style_available(style_item)
+        if not style_available:
+            self.__push_msg("Запрашиваемый стиль недоступен!")
+            return
+        
+        player_name = BigWorld.player().name
+
+        if vehicle:
+            self.__push_msg("Снимаем запрашиваемый стиль!")
+            remove_customization(vehicle.invID)
+
+            profile = self.__data['profiles'].get(player_name, {})
+            saved_hex_data = profile.get(str(vehicle.invID))
+
+            if saved_hex_data:
+                request_data = [ (d.decode('hex'), s) for d, s in saved_hex_data ]
+                apply_customization(vehicle.invID, request_data)
+    
+        current_outfit_data = get_vehicle_customization_data(g_currentVehicle.item)
+        
+        serialized_data = []
+        for b_data, season in current_outfit_data:
+            serialized_data.append((b_data.encode('hex'), season))
+
+        if player_name not in self.__data['profiles']:
+            self.__data['profiles'][player_name] = {}
+        
+        self.__data['profiles'][player_name][str(g_currentVehicle.item.invID)] = serialized_data
+        self.__save_config()
+
         remove_customization(g_currentVehicle.item.invID)
 
-        def step_apply_required():
-            log("Применяем запрашиваемый стиль!")
-            apply_customization(g_currentVehicle.item.invID, get_style_customization_data(STYLE_ID, g_currentVehicle.item))
+        def final_step():
+            style_data = get_style_customization_data(STYLE_ID, g_currentVehicle.item)
+            apply_customization(g_currentVehicle.item.invID, style_data)
+            self.__push_msg("Стиль применен!")
 
-            def step_restore_current():
-                log("Возвращаем старый камик!")
-                BigWorld.callback(0.0, lambda: apply_customization(g_currentVehicle.item.invID, current_vehicle_customization))
+        BigWorld.callback(0.5, final_step)
 
-            BigWorld.callback(3.0, step_restore_current)
-            
-        BigWorld.callback(0.5, step_apply_required)
-
-    BigWorld.callback(0.5, step_clear_current)
-
-hangarSpace = dependency.instance(IHangarSpace) # type: IHangarSpace
-
-def init():
-  hangarSpace.onVehicleChanged += onHangarVehicleChanged
-
-import os
-
-def onHangarVehicleChanged():
-  log(os.getcwd())
+batyaMod = BatyaMod()
+InputHandler.g_instance.onKeyDown += batyaMod.handle_key_event
