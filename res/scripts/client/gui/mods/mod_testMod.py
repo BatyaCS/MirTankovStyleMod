@@ -92,6 +92,8 @@ def is_style_available(style_item):
     return False, None
 
 class BatyaMod(object):
+    hangarSpace = dependency.descriptor(IHangarSpace)
+
     def __init__(self):
         self.__conf_dir = os.path.join('mods', 'configs', 'BatyaMod')
         self.__conf_file = os.path.join(self.__conf_dir, 'saved_info.json')
@@ -100,6 +102,19 @@ class BatyaMod(object):
             'profiles': {} # Dict: { "Nickname": { "vehIntCD": "hex_data" } }
         }
         self.__load_config()
+
+        self.hangarSpace.onSpaceCreate += self.__add_listeners
+        self.hangarSpace.onSpaceDestroy += self.__remove_listeners
+
+        # Если мод загружен, когда ангар уже инициализирован
+        if self.hangarSpace.spaceInited:
+            self.__add_listeners()
+
+    def __add_listeners(self):
+        InputHandler.g_instance.onKeyDown += self.handle_key_event
+
+    def __remove_listeners(self):
+        InputHandler.g_instance.onKeyDown -= self.handle_key_event
         
     def __load_config(self):
         if not os.path.exists(self.__conf_dir):
@@ -160,7 +175,7 @@ class BatyaMod(object):
         player_name = BigWorld.player().name
 
         if vehicle:
-            self.__push_msg("Снимаем запрашиваемый стиль!")
+            #self.__push_msg("Снимаем запрашиваемый стиль!")
             remove_customization(vehicle.invID)
 
             profile = self.__data['profiles'].get(player_name, {})
@@ -187,9 +202,8 @@ class BatyaMod(object):
         def final_step():
             style_data = get_style_customization_data(STYLE_ID, g_currentVehicle.item)
             apply_customization(g_currentVehicle.item.invID, style_data)
-            self.__push_msg("Стиль применен!")
+            #self.__push_msg("Стиль применен!")
 
-        BigWorld.callback(0.5, final_step)
+        BigWorld.callback(0.1, final_step)
 
 batyaMod = BatyaMod()
-InputHandler.g_instance.onKeyDown += batyaMod.handle_key_event
