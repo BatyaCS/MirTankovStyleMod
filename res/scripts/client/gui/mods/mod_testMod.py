@@ -24,27 +24,47 @@ def remove_customization(item_inv_id):
     BigWorld.player().shop.buyAndEquipOutfit(item_inv_id, [(b'', 15)], None)
 
 def get_vehicle_customization_data(vehicle):
-    items_cache = dependency.instance(IItemsCache)
-    vehicle_cd = vehicle.descriptor.makeCompactDescr()
+    itemsCache = dependency.instance(IItemsCache)
+    c11nService = dependency.instance(ICustomizationService)
     
-    data = []
+    requestData = []
+    vehicleCD = vehicle.descriptor.makeCompactDescr()
+
     for season in SeasonType.COMMON_SEASONS:
         outfit = vehicle.getOutfit(season)
         if not outfit:
-            data.append((b'', season))
+            requestData.append((b'', season))
             continue
-            
-        component = outfit.pack()
-        if component.styleId:
-            int_cd = makeIntCompactDescrByID('customizationItem', CustomizationType.STYLE, component.styleId)
-            style = items_cache.items.getItemByCD(int_cd)
-            if style:
-                base_outfit = removePartsFromOutfit(season, style.getOutfit(season, vehicle_cd))
-                component = component.getDiff(base_outfit.pack())
-            
-        data.append((component.makeCompDescr(), season))
 
-    return data
+        if outfit.id:
+            intCD = makeIntCompactDescrByID('customizationItem', CustomizationType.STYLE, outfit.id)
+            style = itemsCache.items.getItemByCD(intCD)
+            
+            outfit = removePartsFromOutfit(season, outfit)
+            
+            if style and style.isProgressive:
+                outfit = c11nService.removeAdditionalProgressionData(
+                    outfit=outfit, style=style, vehCD=vehicleCD, season=season
+                )
+
+        component = outfit.pack()
+        
+        if component.styleId and isEditedStyle(component):
+            intCD = makeIntCompactDescrByID('customizationItem', CustomizationType.STYLE, component.styleId)
+            style = itemsCache.items.getItemByCD(intCD)
+            
+            baseOutfit = removePartsFromOutfit(season, style.getOutfit(season, vehicleCD))
+            if style.isProgressive:
+                baseOutfit = c11nService.removeAdditionalProgressionData(
+                    outfit=baseOutfit, style=style, vehCD=vehicleCD, season=season
+                )
+            
+            baseComponent = baseOutfit.pack()
+            component = component.getDiff(baseComponent)
+
+        requestData.append((component.makeCompDescr(), season))
+
+    return requestData
 
 def get_style_customization_data(style_id, vehicle):
     from vehicle_outfit.outfit import Outfit
@@ -142,7 +162,7 @@ class BatyaMod(object):
         if event.isKeyDown():
             if event.key == Keys.KEY_F9:
                 self.__data['active'] = not self.__data['active']
-                status = "ON" if self.__data['active'] else "OFF"
+                status = "Включен" if self.__data['active'] else "Выключен"
                 self.__push_msg("Статус: %s" % status)
                 self.__save_config()
 
