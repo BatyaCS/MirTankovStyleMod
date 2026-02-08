@@ -5,6 +5,7 @@ import Keys
 
 from gui import InputHandler, SystemMessages
 
+from PlayerEvents import g_playerEvents
 from CurrentVehicle import g_currentVehicle
 from helpers import dependency
 from skeletons.gui.shared import IItemsCache
@@ -123,18 +124,20 @@ class BatyaMod(object):
         }
         self.__load_config()
 
-        self.hangarSpace.onSpaceCreate += self.__add_listeners
-        self.hangarSpace.onSpaceDestroy += self.__remove_listeners
+        #self.hangarSpace.onSpaceCreate += self.__add_listeners
+        #self.hangarSpace.onSpaceDestroy += self.__remove_listeners
 
         # Если мод загружен, когда ангар уже инициализирован
-        if self.hangarSpace.spaceInited:
-            self.__add_listeners()
+        #if self.hangarSpace.spaceInited:
+        self.__add_listeners()
 
     def __add_listeners(self):
         InputHandler.g_instance.onKeyDown += self.handle_key_event
+        g_playerEvents.onEnqueued += self.handle_queue_event
 
     def __remove_listeners(self):
         InputHandler.g_instance.onKeyDown -= self.handle_key_event
+        g_playerEvents.onEnqueued -= self.handle_queue_event
         
     def __load_config(self):
         if not os.path.exists(self.__conf_dir):
@@ -162,18 +165,26 @@ class BatyaMod(object):
         if event.isKeyDown():
             if event.key == Keys.KEY_F9:
                 self.__data['active'] = not self.__data['active']
-                status = "Включен" if self.__data['active'] else "Выключен"
+                status = "Автоприменение вкл" if self.__data['active'] else "Автоприменение выкл"
                 self.__push_msg("Статус: %s" % status)
                 self.__save_config()
 
-            if event.key == Keys.KEY_F10:
-                if self.__data['active']:
-                    self.__process_style_logic()
-                else:
-                    self.__push_msg("Мод выключен, нажмите F9 чтобы включить.")
+            elif event.key == Keys.KEY_F10 and self.hangarSpace.spaceInited:
+                self.__process_style_logic()
+
+    def handle_queue_event(self, queueType, *args):
+        if not self.__data['active']:
+            return
+
+        if queueType == 1:
+            self.__process_style_logic()
 
     def __process_style_logic(self):
         vehicle = g_currentVehicle.item
+        if vehicle.isLocked:
+            #self.__push_msg("Танчик заблокирован!")
+            return
+
         if not vehicle or not vehicle.isInInventory:
             self.__push_msg("Танчик не выбран!")
             return
@@ -206,7 +217,15 @@ class BatyaMod(object):
                 apply_customization(vehicle.invID, request_data)
     
         current_outfit_data = get_vehicle_customization_data(g_currentVehicle.item)
-        
+        remove_customization(g_currentVehicle.item.invID)
+
+        def final_step():
+            style_data = get_style_customization_data(STYLE_ID, g_currentVehicle.item)
+            apply_customization(g_currentVehicle.item.invID, style_data)
+            #self.__push_msg("Стиль применен!")
+
+        BigWorld.callback(0.0, final_step)
+
         serialized_data = []
         for b_data, season in current_outfit_data:
             serialized_data.append((b_data.encode('hex'), season))
@@ -216,14 +235,5 @@ class BatyaMod(object):
         
         self.__data['profiles'][player_name][str(g_currentVehicle.item.invID)] = serialized_data
         self.__save_config()
-
-        remove_customization(g_currentVehicle.item.invID)
-
-        def final_step():
-            style_data = get_style_customization_data(STYLE_ID, g_currentVehicle.item)
-            apply_customization(g_currentVehicle.item.invID, style_data)
-            #self.__push_msg("Стиль применен!")
-
-        BigWorld.callback(0.1, final_step)
 
 batyaMod = BatyaMod()
