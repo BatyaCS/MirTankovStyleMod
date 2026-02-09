@@ -122,22 +122,12 @@ class BatyaMod(object):
             'active': False,
             'profiles': {} # Dict: { "Nickname": { "vehIntCD": "hex_data" } }
         }
+
         self.__load_config()
-
-        #self.hangarSpace.onSpaceCreate += self.__add_listeners
-        #self.hangarSpace.onSpaceDestroy += self.__remove_listeners
-
-        # Если мод загружен, когда ангар уже инициализирован
-        #if self.hangarSpace.spaceInited:
         self.__add_listeners()
 
     def __add_listeners(self):
         InputHandler.g_instance.onKeyDown += self.handle_key_event
-        g_playerEvents.onEnqueued += self.handle_queue_event
-
-    def __remove_listeners(self):
-        InputHandler.g_instance.onKeyDown -= self.handle_key_event
-        g_playerEvents.onEnqueued -= self.handle_queue_event
         
     def __load_config(self):
         if not os.path.exists(self.__conf_dir):
@@ -172,17 +162,14 @@ class BatyaMod(object):
             elif event.key == Keys.KEY_F10 and self.hangarSpace.spaceInited:
                 self.__process_style_logic()
 
-    def handle_queue_event(self, queueType, *args):
-        if not self.__data['active']:
-            return
-
-        if queueType == 1:
-            self.__process_style_logic()
+    #def handle_queue_event(self):
+    #    if not self.__data['active']:
+    #        return
 
     def __process_style_logic(self):
         vehicle = g_currentVehicle.item
         if vehicle.isLocked:
-            #self.__push_msg("Танчик заблокирован!")
+            self.__push_msg("Танчик заблокирован!")
             return
 
         if not vehicle or not vehicle.isInInventory:
