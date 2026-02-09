@@ -16,6 +16,9 @@ from items import makeIntCompactDescrByID
 from items.customizations import isEditedStyle
 from gui.Scaleform.daapi.view.lobby.customization.shared import removePartsFromOutfit
 
+from constants import QUEUE_TYPE
+from gui.game_control.platoon_controller import PlatoonController
+
 STYLE_ID = 31438
 
 def apply_customization(item_inv_id, customization_data):
@@ -126,8 +129,24 @@ class BatyaMod(object):
         self.__load_config()
         self.__add_listeners()
 
+        self.__install_platoon_hook()
+
     def __add_listeners(self):
         InputHandler.g_instance.onKeyDown += self.handle_key_event
+
+    def __install_platoon_hook(self):
+        if not hasattr(PlatoonController, '_batya_orig'):
+            PlatoonController._batya_orig = PlatoonController.togglePlayerReadyAction
+            
+            def _hook(self_pc, *a, **kw):
+                if not self_pc.prbEntity.getPlayerInfo().isReady:
+                    if self_pc.getQueueType() == QUEUE_TYPE.RANDOMS:
+                        if self.hangarSpace.spaceInited and self.__data['active']:
+                            self.__process_style_logic()
+
+                return PlatoonController._batya_orig(self_pc, *a, **kw)
+            
+            PlatoonController.togglePlayerReadyAction = _hook
         
     def __load_config(self):
         if not os.path.exists(self.__conf_dir):
@@ -161,10 +180,6 @@ class BatyaMod(object):
 
             elif event.key == Keys.KEY_F10 and self.hangarSpace.spaceInited:
                 self.__process_style_logic()
-
-    #def handle_queue_event(self):
-    #    if not self.__data['active']:
-    #        return
 
     def __process_style_logic(self):
         vehicle = g_currentVehicle.item
