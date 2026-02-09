@@ -198,13 +198,16 @@ class BatyaMod(object):
                 self.__process_style_logic()
 
     def __process_style_logic(self):
-        vehicle = g_currentVehicle.item
-        if vehicle.isLocked:
-            self.__push_msg("Танчик заблокирован!")
+        current_vehicle = g_currentVehicle.item
+        if not current_vehicle or not current_vehicle.isInInventory:
+            self.__push_msg("Танчик не выбран!")
             return
 
-        if not vehicle or not vehicle.isInInventory:
-            self.__push_msg("Танчик не выбран!")
+        if current_vehicle.isOutfitLocked:
+            return
+
+        if current_vehicle.isLocked:
+            self.__push_msg("Танчик заблокирован!")
             return
 
         style_item = get_style_item_by_id(STYLE_ID)
@@ -213,7 +216,7 @@ class BatyaMod(object):
             return
         
         if is_style_already_set(style_item):
-            self.__push_msg("Запрашиваемый стиль уже установлен на танк!")
+            #self.__push_msg("Запрашиваемый стиль уже установлен на танк!")
             return
         
         style_available, vehicle = is_style_available(style_item)
@@ -234,12 +237,12 @@ class BatyaMod(object):
                 request_data = [ (d.decode('hex'), s) for d, s in saved_hex_data ]
                 apply_customization(vehicle.invID, request_data)
     
-        current_outfit_data = get_vehicle_customization_data(g_currentVehicle.item)
-        remove_customization(g_currentVehicle.item.invID)
+        current_outfit_data = get_vehicle_customization_data(current_vehicle)
+        remove_customization(current_vehicle.invID)
 
         def final_step():
-            style_data = get_style_customization_data(STYLE_ID, g_currentVehicle.item)
-            apply_customization(g_currentVehicle.item.invID, style_data)
+            style_data = get_style_customization_data(STYLE_ID, current_vehicle)
+            apply_customization(current_vehicle.invID, style_data)
             #self.__push_msg("Стиль применен!")
 
         BigWorld.callback(0.0, final_step)
