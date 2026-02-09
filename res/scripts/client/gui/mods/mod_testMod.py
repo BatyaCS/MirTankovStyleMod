@@ -17,7 +17,9 @@ from items.customizations import isEditedStyle
 from gui.Scaleform.daapi.view.lobby.customization.shared import removePartsFromOutfit
 
 from constants import QUEUE_TYPE
+
 from gui.game_control.platoon_controller import PlatoonController
+from gui.prb_control.entities.base.pre_queue.entity import PreQueueEntity
 
 STYLE_ID = 31438
 
@@ -129,14 +131,15 @@ class BatyaMod(object):
         self.__load_config()
         self.__add_listeners()
 
-        self.__install_platoon_hook()
+        self.__install_platoon_toggle_hook()
+        self.__install_prequeue_hook()
 
     def __add_listeners(self):
         InputHandler.g_instance.onKeyDown += self.handle_key_event
 
-    def __install_platoon_hook(self):
-        if not hasattr(PlatoonController, '_batya_orig'):
-            PlatoonController._batya_orig = PlatoonController.togglePlayerReadyAction
+    def __install_platoon_toggle_hook(self):
+        if not hasattr(PlatoonController, '_batya_toggle_orig'):
+            PlatoonController._batya_toggle_orig = PlatoonController.togglePlayerReadyAction
             
             def _hook(self_pc, *a, **kw):
                 if not self_pc.prbEntity.getPlayerInfo().isReady:
@@ -144,9 +147,22 @@ class BatyaMod(object):
                         if self.hangarSpace.spaceInited and self.__data['active']:
                             self.__process_style_logic()
 
-                return PlatoonController._batya_orig(self_pc, *a, **kw)
+                return PlatoonController._batya_toggle_orig(self_pc, *a, **kw)
             
             PlatoonController.togglePlayerReadyAction = _hook
+
+    def __install_prequeue_hook(self):
+        if not hasattr(PreQueueEntity, '_batya_prequeue_orig'):
+            PreQueueEntity._batya_prequeue_orig = PreQueueEntity.queue
+            
+            def _hook(self_pqe, ctx, callback=None):
+                if self_pqe.getQueueType() == QUEUE_TYPE.RANDOMS:
+                    if self.hangarSpace.spaceInited and self.__data['active']:
+                        self.__process_style_logic()
+
+                return PreQueueEntity._batya_prequeue_orig(self_pqe, ctx, callback)
+            
+            PreQueueEntity.queue = _hook
         
     def __load_config(self):
         if not os.path.exists(self.__conf_dir):
