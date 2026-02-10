@@ -203,9 +203,6 @@ class BatyaMod(object):
             self.__push_msg("Танчик не выбран!")
             return
 
-        if current_vehicle.isOutfitLocked:
-            return
-
         if current_vehicle.isLocked:
             self.__push_msg("Танчик заблокирован!")
             return
@@ -217,6 +214,10 @@ class BatyaMod(object):
         
         if is_style_already_set(style_item):
             #self.__push_msg("Запрашиваемый стиль уже установлен на танк!")
+            return
+        
+        if current_vehicle.isOutfitLocked or not style_item.mayInstall(current_vehicle):
+            #self.__push_msg("Установка стиля на выбранный танк невозможна!")
             return
         
         style_available, vehicle = is_style_available(style_item)
