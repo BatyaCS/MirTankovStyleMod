@@ -14,7 +14,7 @@ from skeletons.gui.customization import ICustomizationService
 from items.components.c11n_constants import SeasonType, CustomizationType
 from items import makeIntCompactDescrByID
 from items.customizations import isEditedStyle
-from gui.Scaleform.daapi.view.lobby.customization.shared import removePartsFromOutfit
+from gui.impl.lobby.customization.shared import removePartsFromOutfit
 
 from constants import QUEUE_TYPE
 
